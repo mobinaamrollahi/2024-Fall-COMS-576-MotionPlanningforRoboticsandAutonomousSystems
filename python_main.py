@@ -1,5 +1,8 @@
+import collections
 from collections import deque
 import heapq
+from abc import ABC, abstractmethod
+import math
 
 class GridEnvironment:
     def __init__(self, X_max, Y_max, obstacles, xI, XG):
@@ -33,13 +36,22 @@ class StateSpace:
 
     def get_distance_lower_bound(self, x1, x2) -> float:
     # Return the lower bound on the distance between the given states x1 and x2
-        return 0
+        return math.sqrt((x1[0] - x2[0])**2 + (x1[1] - x2[1])**2)
 
 class ActionSpace:
     #A base class to specify an action space
     def __call__(self, x) -> list:
     # Return the list of all the possible actions at the given state x
-        raise NotImplementedError
+        actions = [(0, 1), (-1, 0), (1, 0), (0, -1)]
+        valid_actions = []
+
+        # Check each action to see if it results in a valid state
+        for action in actions:
+            new_state = (x[0] + action[0], x[1] + action[1])
+            if new_state in self.state_space:  # Check if new_state is within the state space
+                valid_actions.append(action)  # Add action if the resulting state is valid
+
+        return valid_actions
 
 class StateTransition:
     # A base class to specify a state transition function
@@ -47,6 +59,62 @@ class StateTransition:
     # Return the new state obtained by applying action u at state x
         raise NotImplementedError
 
+class Queue(ABC):
+    def __init__(self):
+        self.elements = deque()
+        self.parents = {}
+
+    @abstractmethod
+    def insert(self, x, parent):
+        pass
+
+    def pop(self):
+        return self.elements.popleft()
+
+    def __bool__(self):
+        return bool(self.elements)
+
+    def get_path(self, goal):
+        path = []
+        current = goal
+        while current:
+            path.append(current)
+            current = self.parents.get(current)
+        return path[::-1]
+
+class QueueBFS(Queue):
+    def insert(self, x, parent):
+        self.elements.append(x)
+        self.parents[x] = parent
+
+class QueueAstar(Queue):
+    def __init__(self, X, XG):
+        super().__init__()
+        self.X = X
+        self.XG = XG
+        self.f_scores = {}
+
+    def insert(self, x, parent):
+        f_score = self.compute_f_score(x)
+        heapq.heappush(self.elements, (f_score, x))
+        self.parents[x] = parent
+        self.f_scores[x] = f_score
+
+    def pop(self):
+        return heapq.heappop(self.elements)[1]
+
+    def compute_f_score(self, x):
+        g_score = len(self.get_path(x)) - 1  # Cost from start to x
+        h_score = min(self.X.get_distance_lower_bound(x, goal) for goal in self.XG)
+        return g_score + h_score
+
+def get_queue(alg, X, XG):
+    if alg == "bfs":
+        return QueueBFS()
+    elif alg == "astar":
+        return QueueAstar(X, XG)
+    else:
+        raise ValueError("Invalid algorithm specified. Use 'bfs' or 'astar'")
 
 def fsearch(X, U, f, xI, XG, alg):
     """
@@ -68,10 +136,48 @@ def fsearch(X, U, f, xI, XG, alg):
             if element in X:
                 return True
     
-    # Check if the initial state is already a goal state
-    if xI in XG:
-        return {"visited": {xI}, "path": [xI]}
+    visited = set()
+    parent = {}
     
-    # Check if the goal set is empty
-    if not XG:
-        return {"visited": set(), "path": None}
+    if xI not in X:
+        raise ValueError("Initial state is not in the state space")
+    
+    #if not XG:
+    #    return {"visited": set(), "path": None}
+    
+    if alg == "bfs":
+        Q = deque([xI])
+    elif alg == "astar":
+        # For A*, we'll use a priority queue (to be implemented)
+        raise NotImplementedError("A* search not yet implemented")
+    else:
+        raise ValueError("Invalid algorithm specified. Use 'bfs' or 'astar'")
+    
+    # Q.Insert(xI)
+    visited.add(xI)
+    Q.append(xI)
+
+
+    while Q:
+        x = Q.popleft()  # For BFS. For A*, this would be Q.get()
+
+        if x in XG:
+            # Reconstruct path
+            path = []
+            while x is not None:
+                path.append(x)
+                x = parent.get(x)
+            return {"visited": visited, "path": path[::-1]}
+        
+        for u in U(x):
+            x_prime = f(x, u)
+            if x_prime not in visited:
+                visited.add(x_prime)
+                parent[x_prime] = x
+                Q.append(x_prime)
+            else:
+                # Here you could implement logic to resolve duplicates
+                # For BFS, we typically don't need to do anything
+                pass
+    
+    return {"visited": visited, "path": None}
