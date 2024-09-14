@@ -2,13 +2,12 @@ import collections
 from collections import deque
 from queue import Queue
 import heapq
-from abc import ABC, abstractmethod
 import math
 import numpy as np
 import json 
 
-class GridEnvironment():
-    def __init__(self, X_max, Y_max, obstacles, xI, XG):
+class StateSpace:
+    def __init__(self, X_max, Y_max, obstacles):
         """
         Initialize the environment with grid size, obstacles, initial state, and goal set.
         
@@ -20,111 +19,54 @@ class GridEnvironment():
         """
         self.X_max = X_max
         self.Y_max = Y_max
-        self.obstacles = set(obstacles)
-        self.xI = xI
-        self.XG = XG
-        self.W = {(x, y) for x in range(self.X_max) for y in range(self.Y_max)}
+        self.obstacles = obstacles  # Convert obstacles to a set of tuples for efficient lookup
 
-class StateSpace:
-    # A base class to specify a state space X
-    def __init__(self, enviornment):
-        self.evn = enviornment
-        self.states = self.env.W - self.env.obstacles
 
     def __contains__(self, x) -> bool:
-        if x not in self.states:
-            raise NotImplementedError
-        # Return whether the given state x is in the state space
-        return True
+        # Ensure x is a tuple and within bounds
+        #x = (x[0], x[1])  # Ensure x is a tuple with two elements
+
+        x, y = x
+        in_bounds = (0 <= x <= self.X_max) and (0 <= y <= self.Y_max)
+        not_in_obstacle = all([x != O[0] or y != O[1] for O in self.obstacles])
+        #print(f"Checking state: {x}")
+        #print(f"Bounds: (0 <= {x} < {self.X_max}), (0 <= {y} < {self.Y_max})")
+        #print(f"Not in obstacles: {x not in self.obstacles}")
+
+        return in_bounds and not_in_obstacle
 
     def get_distance_lower_bound(self, x1, x2) -> float:
-    # Return the lower bound on the distance between the given states x1 and x2
         # Convert to numpy arrays
         x1_arr = np.array(x1)
         x2_arr = np.array(x2)
-    
         # Use numpy's norm function to calculate the distance
         return np.linalg.norm(x1_arr - x2_arr)
 
 class ActionSpace:
-    #A base class to specify an action space
-    def __call__(self, x) -> list:
-    # Return the list of all the possible actions at the given state x
-        actions = [(0, 1), (-1, 0), (1, 0), (0, -1)]
+    actions = [(0, 1), (-1, 0), (1, 0), (0, -1)]
+
+    # A base class to specify an action space
+    def __init__(self, X, f):
+        self.X = X
+        self.f = f
+
+    def __call__(self, x):
         valid_actions = []
 
         # Check each action to see if it results in a valid state
-        for action in actions:
-            new_state = (x[0] + action[0], x[1] + action[1])
-            if new_state in self.state_space:  # Check if new_state is within the state space
+        for action in self.actions:
+            new_state = self.f(x, action)
+            if self.X.__contains__(new_state):  # Check if new_state is within the state space
                 valid_actions.append(action)  # Add action if the resulting state is valid
-
+        #print("Current State", x, "Valid Actions:", valid_actions)
         return valid_actions
 
 class StateTransition:
     # A base class to specify a state transition function
     def __call__(self, x, u):
-    # Return the new state obtained by applying action u at state x
-        raise NotImplementedError
-
-class Queue(ABC):
-    def __init__(self):
-        self.elements = deque()
-        self.parents = {}
-
-    def insert(self, x, parent):
-        pass
-
-    def pop(self):
-        pass
-
-    def get_path(self, goal):
-        path = []
-        current = goal
-        while current:
-            path.append(current)
-            current = self.parents.get(current)
-        return path[::-1]
-
-class QueueBFS(Queue):
-    def insert(self, x, parent):
-        self.elements.append(x)
-        self.parents[x] = parent
-
-    def pop(self):
-        return self.elements.pop(0)
-
-class QueueAstar(Queue):
-    def __init__(self, X, XG):
-        super().__init__()
-        self.X = X
-        self.XG = XG
-        self.elements = []
-        self.parent = {}
-        self.f_scores = {}
-
-    def insert(self, x, parent):
-        f_score = self.compute_f_score(x)
-        heapq.heappush(self.elements, (f_score, x))
-        self.parents[x] = parent
-        self.f_scores[x] = f_score
-
-    def pop(self):
-        return heapq.heappop(self.elements)[1]
-
-    def compute_f_score(self, x):
-        g_score = len(self.get_path(x)) - 1  # Cost from start to x
-        h_score = min(self.X.get_distance_lower_bound(x, goal) for goal in self.XG)
-        return g_score + h_score
-
-def get_queue(alg, X, XG):
-    if alg == "bfs":
-        return QueueBFS()
-    elif alg == "astar":
-        return QueueAstar(X, XG)
-    else:
-        # This is because 'dfs' has also been considered as one of the algorithms!
-        raise ValueError("Invalid algorithm specified. Use 'bfs' or 'astar'")
+        # Return the new state obtained by applying action u at state x
+        x_prime = (x[0] + u[0], x[1] + u[1])
+        return x_prime
 
 def fsearch(X, U, f, xI, XG, alg):
     """
@@ -132,59 +74,90 @@ def fsearch(X, U, f, xI, XG, alg):
     X = State Space
     U = Action Space
     f = State Transition Function
-    xI = Intial State
+    xI = Initial State
     XG = Goal State
     alg = The Planning Algorithm
     """
-    # Check if the initial state is valid
-    if xI not in X:
-        raise ValueError("Initial state is not in the state space")
-    
-    # For any element x in a non-empty set $X_G$ the statement x in X returns true
-    if len(XG) != 0:
-        for element in XG:
-            if element in X:
-                return True
-    
-    if xI in XG:
-        return {"visited": {xI}, "path": [xI]}
-    
-    if not XG:
-        return {"visited": set(), "path": None}
-
-
+    if alg == 'bfs':
+        Q = QueueBFS()
+    elif alg == 'astar':
+        Q = QueueAstar(X, XG)
+        
     visited = set()
-    Q = get_queue(alg, X, XG)
-    parent = {}
-    
     Q.insert(xI, None)
-    visited = set([xI])
+    parent = {}
 
-    while Q:
-        x = Q.pop()  # For BFS. For A*, this would be Q.get()
+    while Q.queue:
+        #if not Q.queue:  # Check if the queue is empty
+            #print("Queue is empty in fsearch")
+            # break
+        x = Q.pop()  
 
         if x in visited:
             continue
         visited.add(x)
 
-        if x in XG:
+        if x == XG:
+            # print("State", x)
             # Reconstruct path
             path = []
             while x is not None:
-                path.append(x)
-                x = parent.get(x)
-            return {"visited": visited, "path": path[::-1]}
-        
+                path.insert(0, x)
+                x = Q.parent[x]
+            return {"visited": visited, "path": path}
         for u in U(x):
             x_prime = f(x, u)
             if x_prime not in visited:
-                visited.add(x_prime)
-                parent[x_prime] = x
-                Q.append(x_prime)
-    
+                Q.insert(x_prime, x)  
+
     return {"visited": visited, "path": None}
 
-def main():
+class Queue:
+    def __init__(self):
+        self.queue = []
+        self.parent = {}  # parents dictionary
+
+    def insert(self, x, parent):
+        pass
+
+    def pop(self):
+        pass
+
+class QueueBFS(Queue):
+    def insert(self, x, parent):
+        if x not in self.parent:
+            self.queue.append(x)
+            self.parent[x] = parent
+
+    def pop(self):
+        return self.queue.pop(0)  
+
+class QueueAstar(Queue):
+    def __init__(self, X, XG):
+        super().__init__()
+        self.X = X
+        self.XG = XG
+        self.queue = []
+        self.parent = {}
+        self.f_scores = {}
+
+    def insert(self, x, parent):
+        self.queue.insert(0, x)        
+        self.parent[x] = parent
+        if parent is not None:
+            self.f_scores[x] = self.f_scores[parent] + 1
+        else:
+            self.f_scores[x] = 0
+        for goal in self.XG:
+            self.f_scores[x] += self.X.get_distance_lower_bound(x, goal)
+
+    def pop(self):
+        index = self.queue.index(min(self.queue, key=lambda x: self.f_scores[x]))
+        x = self.queue.pop(index)
+        return x
+    
+# Entry point of the program
+if __name__ == "__main__":
     # Load data from input.json
     with open('input.json', 'r') as file:
         data = json.load(file)
@@ -192,23 +165,23 @@ def main():
     # Assign the values from the JSON to the variables
     X_max = data['X_max']
     Y_max = data['Y_max']
-    obstacles = data['obstacles']
-    xI = data['xI']
-    XG = data['XG']
+    obstacles = [tuple(x) for x in data['obstacles']]
+    xI = tuple(data['xI'])
+    XG = tuple(data['XG'])
 
-    # Now X_max, Y_max, obstacles, xI, and XG are ready to be used in your program
-    print(X_max, Y_max, obstacles, xI, XG)
+    # Print the loaded data
+    # print("X_max:", X_max, "Y_max:", Y_max, "obstacles:", obstacles, "Initial State:", xI, "Goal State:", XG)
 
-    # Create the environment
-    env = GridEnvironment(X_max, Y_max, obstacles, xI, XG)
+    X = StateSpace(X_max, Y_max, obstacles)
+    f = StateTransition()
+    U = ActionSpace(X, f)
     
-    # Create instances of StateSpace and ActionSpace
-    X = StateSpace(env)  # State space
-    U = ActionSpace(X)   # Action space
+    # Run fsearch with BFS
+    result_bfs = fsearch(X, U, f, xI, XG, 'bfs')
+    print("BFS results:")
+    print(result_bfs)
 
-# Entry point of the program
-if __name__ == "__main__":
-    main()
-
-    #result = fsearch(X, U, f, xI, XG, args.alg)
-    #print("rs",result)
+    # Run fsearch with A* algorithm
+    result_astar = fsearch(X, U, f, xI, XG, 'astar')
+    print("AStar results:")
+    print(result_astar)
