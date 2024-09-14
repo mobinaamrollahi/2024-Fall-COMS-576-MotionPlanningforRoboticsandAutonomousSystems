@@ -1,10 +1,13 @@
 import collections
 from collections import deque
+from queue import Queue
 import heapq
 from abc import ABC, abstractmethod
 import math
+import numpy as np
+import json 
 
-class GridEnvironment:
+class GridEnvironment():
     def __init__(self, X_max, Y_max, obstacles, xI, XG):
         """
         Initialize the environment with grid size, obstacles, initial state, and goal set.
@@ -36,7 +39,12 @@ class StateSpace:
 
     def get_distance_lower_bound(self, x1, x2) -> float:
     # Return the lower bound on the distance between the given states x1 and x2
-        return math.sqrt((x1[0] - x2[0])**2 + (x1[1] - x2[1])**2)
+        # Convert to numpy arrays
+        x1_arr = np.array(x1)
+        x2_arr = np.array(x2)
+    
+        # Use numpy's norm function to calculate the distance
+        return np.linalg.norm(x1_arr - x2_arr)
 
 class ActionSpace:
     #A base class to specify an action space
@@ -64,15 +72,11 @@ class Queue(ABC):
         self.elements = deque()
         self.parents = {}
 
-    @abstractmethod
     def insert(self, x, parent):
         pass
 
     def pop(self):
-        return self.elements.popleft()
-
-    def __bool__(self):
-        return bool(self.elements)
+        pass
 
     def get_path(self, goal):
         path = []
@@ -87,11 +91,16 @@ class QueueBFS(Queue):
         self.elements.append(x)
         self.parents[x] = parent
 
+    def pop(self):
+        return self.elements.pop(0)
+
 class QueueAstar(Queue):
     def __init__(self, X, XG):
         super().__init__()
         self.X = X
         self.XG = XG
+        self.elements = []
+        self.parent = {}
         self.f_scores = {}
 
     def insert(self, x, parent):
@@ -114,6 +123,7 @@ def get_queue(alg, X, XG):
     elif alg == "astar":
         return QueueAstar(X, XG)
     else:
+        # This is because 'dfs' has also been considered as one of the algorithms!
         raise ValueError("Invalid algorithm specified. Use 'bfs' or 'astar'")
 
 def fsearch(X, U, f, xI, XG, alg):
@@ -127,8 +137,8 @@ def fsearch(X, U, f, xI, XG, alg):
     alg = The Planning Algorithm
     """
     # Check if the initial state is valid
-    if xI in X:
-        return True
+    if xI not in X:
+        raise ValueError("Initial state is not in the state space")
     
     # For any element x in a non-empty set $X_G$ the statement x in X returns true
     if len(XG) != 0:
@@ -136,30 +146,26 @@ def fsearch(X, U, f, xI, XG, alg):
             if element in X:
                 return True
     
+    if xI in XG:
+        return {"visited": {xI}, "path": [xI]}
+    
+    if not XG:
+        return {"visited": set(), "path": None}
+
+
     visited = set()
+    Q = get_queue(alg, X, XG)
     parent = {}
     
-    if xI not in X:
-        raise ValueError("Initial state is not in the state space")
-    
-    #if not XG:
-    #    return {"visited": set(), "path": None}
-    
-    if alg == "bfs":
-        Q = deque([xI])
-    elif alg == "astar":
-        # For A*, we'll use a priority queue (to be implemented)
-        raise NotImplementedError("A* search not yet implemented")
-    else:
-        raise ValueError("Invalid algorithm specified. Use 'bfs' or 'astar'")
-    
-    # Q.Insert(xI)
-    visited.add(xI)
-    Q.append(xI)
-
+    Q.insert(xI, None)
+    visited = set([xI])
 
     while Q:
-        x = Q.popleft()  # For BFS. For A*, this would be Q.get()
+        x = Q.pop()  # For BFS. For A*, this would be Q.get()
+
+        if x in visited:
+            continue
+        visited.add(x)
 
         if x in XG:
             # Reconstruct path
@@ -175,9 +181,34 @@ def fsearch(X, U, f, xI, XG, alg):
                 visited.add(x_prime)
                 parent[x_prime] = x
                 Q.append(x_prime)
-            else:
-                # Here you could implement logic to resolve duplicates
-                # For BFS, we typically don't need to do anything
-                pass
     
     return {"visited": visited, "path": None}
+
+def main():
+    # Load data from input.json
+    with open('input.json', 'r') as file:
+        data = json.load(file)
+
+    # Assign the values from the JSON to the variables
+    X_max = data['X_max']
+    Y_max = data['Y_max']
+    obstacles = data['obstacles']
+    xI = data['xI']
+    XG = data['XG']
+
+    # Now X_max, Y_max, obstacles, xI, and XG are ready to be used in your program
+    print(X_max, Y_max, obstacles, xI, XG)
+
+    # Create the environment
+    env = GridEnvironment(X_max, Y_max, obstacles, xI, XG)
+    
+    # Create instances of StateSpace and ActionSpace
+    X = StateSpace(env)  # State space
+    U = ActionSpace(X)   # Action space
+
+# Entry point of the program
+if __name__ == "__main__":
+    main()
+
+    #result = fsearch(X, U, f, xI, XG, args.alg)
+    #print("rs",result)
