@@ -6,7 +6,7 @@ import math
 import numpy as np
 import json 
 
-class StateSpace:
+class StateSpace: 
     def __init__(self, X_max, Y_max, obstacles):
         """
         Initialize the environment with grid size, obstacles, initial state, and goal set.
