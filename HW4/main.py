@@ -4,7 +4,14 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from planners import RRT, PRM
+from planners import (
+    RRT,
+    PRM,
+    StraightEdgeCreator,
+    EuclideanDistanceComputator,
+    EmptyCollisionChecker,
+    ObstacleCollisionChecker,
+)
 from drawer import Drawer
 
 def parse_args():
@@ -30,14 +37,12 @@ def parse_args():
     )
 
     # Add arguments for PRM parameters
-    parser.add_argument("-N", type=int, default=1000,
-                       help="number of nodes for PRM (default: 1000)")
     parser.add_argument("-K", type=int, default=15,
                        help="number of nearest neighbors for PRM (default: 15)")
     parser.add_argument("-step_size", type=float, default=0.1,
                        help="step size for RRT extension (default: 0.1)")
-    parser.add_argument("-n_iterations", type=int, default=1000,
-                       help="number of iterations for RRT (default: 1000)")
+    parser.add_argument("-N", type=int, default=1000,
+                       help="number of iterations (default: 1000)")
     parser.add_argument("-p", type=float, default=0.1,
                        help="sampling probability for RRT (default: 0.1)")
     
@@ -72,23 +77,57 @@ if __name__ == '__main__':
     # You can then use the algorithm variable to determine which RRT variant to run
     if args.algorithm == 'simple_RRT':
         # Run simple RRT. No obstacles list needed. "step_size" will be a very big number.
-        tree = RRT(C, [], radius, qI, step_size=float('inf'), n_iterations=args.n_iterations).explore()
-        Plot.visualize_rrt(tree, qI, qG, algorithm='simple_RRT', path = None)
+        (G, _, _) = RRT(
+            C=C,
+            qI=qI,
+            qG=None,
+            edge_creator = StraightEdgeCreator(args.step_size),
+            distance_computator = ObstacleCollisionChecker(O),
+            collision_checker=EmptyCollisionChecker(),
+            N=args.N,)
+        Plot.draw(qI, qG, G, path = None, algorithm='simple_RRT')
 
     elif args.algorithm == 'RRT_with_obstacles':
         # Run RRT considering obstacles
         print("Starting RRT with obstacles...")
-        tree = RRT(C, O, radius, qI, step_size=args.step_size, n_iterations=args.n_iterations).explore()
-        print("tree", tree)
-        Plot.visualize_rrt(tree, qI, qG, algorithm='RRT_with_obstacles', path = None)
-        print("RRT exploration complete!")
+        (G, _, _) = RRT(
+            C=C,
+            qI=qI,
+            qG=None,
+            edge_creator = StraightEdgeCreator(args.step_size),
+            distance_computator = ObstacleCollisionChecker(O),
+            collision_checker = EuclideanDistanceComputator(),
+            N=args.N,)
+        Plot.draw(qI, qG, G, path = None, algorithm='RRT_with_obstacles')
+        
 
     elif args.algorithm == 'single_tree_search_RRT':
         # Run RRT equipped with single-tree search
-        path, tree = RRT(C, O, radius, qI, step_size=100, n_iterations=args.n_iterations).plan_to_goal(qG, p=args.p)
-        Plot.visualize_rrt(tree, qI, qG, algorithm='single_tree_search_RRT', path = path)
+        (G, root, goal) = PRM(
+            C=C,
+            qI=qI,
+            qG=qG,
+            edge_creator = StraightEdgeCreator(args.step_size),
+            distance_computator = ObstacleCollisionChecker(O),
+            collision_checker = EuclideanDistanceComputator(),
+            N=args.N,)
+        path = []
+        if root is not None and goal is not None:
+            path = G.get_path(root, goal)
+        Plot.draw(qI, qG, G, path = path, algorithm='RRT_with_obstacles')
 
     elif args.algorithm == 'PRM':
         # Run probabilistic roadmap
-        path, roadmap = PRM(C, O, radius, N=args.N, K=args.K, step_size=args.step_size).plan_path(qI, qG)
-        Plot.visualize_prm(roadmap, qI, qG, algorithm='PRM', path = path)
+        (G, root, goal) = PRM(
+            cspace=C,
+            qI=qI,
+            qG=qG,
+            edge_creator = StraightEdgeCreator(args.step_size),
+            distance_computator = ObstacleCollisionChecker(O),
+            collision_checker = EuclideanDistanceComputator(),
+            k=args.K,
+            N=args.N,)
+        path = []
+        if root is not None and goal is not None:
+            path = G.get_path(root, goal)
+        Plot.draw(qI, qG, G, path = path, algorithm='PRM')

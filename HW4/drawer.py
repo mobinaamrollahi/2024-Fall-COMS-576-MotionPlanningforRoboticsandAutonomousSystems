@@ -57,25 +57,26 @@ class Drawer:
         """Plot a point with specified style"""
         plt.plot(point[0], point[1], style)
     
-    def plot_tree(self, tree: AbstractTreeGraph):
+    def plot_tree(self, G):
         """Plot tree vertices and edges"""
-        print(f"Plotting tree with {len(tree.vertices)} vertices")
+        print(f"Plotting tree with {len(G.vertices)} vertices")
 
         # Plot vertices
-        for config in tree.vertices.values():
+        for config in G.vertices.values():
             plt.plot(config[0], config[1], 'k.', markersize=2)
         
         # Plot edges
-        for v_id, edges in tree.edges.items():
-            v1 = tree.get_vertex_config(v_id)
+        for v_id, edges in G.edges.items():
+            v1 = G.get_vertex_config(v_id)
             for neighbor_id, _ in edges:
-                v2 = tree.get_vertex_config(neighbor_id)
+                v2 = G.get_vertex_config(neighbor_id)
                 plt.plot([v1[0], v2[0]], [v1[1], v2[1]], 'k-', linewidth=0.5)
     
     def plot_path(self, path: List[List[float]]):
         """Plot path as thick blue line"""
         path = np.array(path)
-        plt.plot(path[:, 0], path[:, 1], 'b-', linewidth=2)
+        if len(path) > 0:
+            plt.plot(path[:, 0], path[:, 1], 'b-', linewidth=2)
     
     def plot_roadmap(self, roadmap: AbstractRoadmapGraph):
         """Plot PRM roadmap"""
@@ -90,11 +91,11 @@ class Drawer:
                 v2 = roadmap.get_vertex_config(neighbor_id)
                 plt.plot([v1[0], v2[0]], [v1[1], v2[1]], 'k-', linewidth=0.5)
     
-    def visualize_rrt(self, tree: AbstractTreeGraph, qI: List[float], 
-                     qG: Optional[List[float]] = None, algorithm: str = None, path: Optional[List[List[float]]] = None):
+    def draw(qI, qG, G, path: Optional[List[List[float]]] = None, algorithm: str = None):
         """Visualize RRT tree with optional goal and path"""
-        self.setup_plot()
-        self.plot_tree(tree)
+        drawG = getattr(G, "draw", None)
+        if callable(drawG):
+            G.draw()
         
         # Plot start point as a blue cross
         plt.plot(qI[0], qI[1], 'bx', markersize=8, label='Start')
@@ -104,7 +105,6 @@ class Drawer:
             plt.plot(qG[0], qG[1], 'bo', markersize=5, label='Goal')
         
         # Plot path if provided
-        # Plot path if provided and valid
         if path is not None:
             path = np.array(path)
             plt.plot(path[:, 0], path[:, 1], '-', color='blue', 
@@ -117,48 +117,11 @@ class Drawer:
             plt.title('RRT exploration, considering obstacles')
         elif algorithm == 'single_tree_search_RRT':
             plt.title('RRT Planning')
+        else:
+            plt.title('PRM Planning')
 
         plt.xlabel('x')
         plt.ylabel('y')
         plt.axis('equal')
         plt.show()
     
-    def visualize_prm(self, roadmap: AbstractRoadmapGraph, qI: List[float], 
-                  qG: List[float], algorithm: str = None, path: Optional[List[List[float]]] = None):
-        """Visualize PRM roadmap and path"""
-        self.setup_plot()
-        
-        # Plot roadmap edges (thin black lines)
-        for v_id, edges in roadmap.edges.items():
-            v1 = roadmap.get_vertex_config(v_id)
-            for neighbor_id, _ in edges:
-                v2 = roadmap.get_vertex_config(neighbor_id)
-                plt.plot([v1[0], v2[0]], [v1[1], v2[1]], 'k-', linewidth=0.5, alpha=0.5)
-        
-        # Plot roadmap vertices (small black dots)
-        for config in roadmap.vertices.values():
-            plt.plot(config[0], config[1], 'k.', markersize=2)
-        
-        # Plot start point (blue cross)
-        plt.plot(qI[0], qI[1], 'bX', markersize=8, label='Start')
-        
-        # Plot goal point (blue circle)
-        plt.plot(qG[0], qG[1], 'bo', markersize=5, label='Goal')
-        
-        # Plot path if provided and valid
-        if path is not None and len(path) > 0:
-            path = np.array(path)
-            plt.plot(path[:, 0], path[:, 1], '-', color='blue', 
-                    linewidth=1.5, label='Path', zorder=10)
-        
-        # Set title based on algorithm
-        if algorithm == 'PRM':
-            plt.title('PRM Planning')
-        else:
-            plt.title('Path Planning')
-        
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.axis('equal')
-        plt.grid(True)
-        plt.show()

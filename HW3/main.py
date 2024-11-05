@@ -47,7 +47,7 @@ def add_rotations(path, thetaI):
                 required_theta = 3*math.pi/2  
             
             # Add rotation if needed
-            if abs(current_theta - required_theta) > 1e-6:
+            if abs(current_theta - required_theta) > 0:
                 full_path.append((previous_x, previous_y, required_theta))
                 current_theta = required_theta
             

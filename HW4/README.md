@@ -102,17 +102,17 @@ The program can be run with different algorithms and parameters using command-li
 
 1. Problem 1a: RRT Exploration without Obstacles
 ```bash
-python main.py -algorithm simple_RRT -dt 0.02 -step_size 0.1 -n_iterations 1000
+python main.py -algorithm simple_RRT -dt 0.02 -step_size 0.1 -N 1000
 ```
 
 2. Problem 1b: RRT Exploration with Obstacles
 ```bash
-python main.py -algorithm RRT_with_obstacles -dt 0.02 -step_size 0.1 -n_iterations 1000
+python main.py -algorithm RRT_with_obstacles -dt 0.02 -step_size 0.1 -N 1000
 ```
 
 3. Problem 2: Single-Tree Search RRT
 ```bash
-python main.py -algorithm single_tree_search_RRT -dt 0.02 -step_size 0.1 -n_iterations 1000 -p 0.1
+python main.py -algorithm single_tree_search_RRT -dt 0.02 -step_size 0.1 -N 1000 -p 0.1
 ```
 
 4. Problem 3: PRM
